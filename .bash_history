@@ -106,3 +106,5 @@ sudo systemctl enable jenkin
 jenkins --version
 sudo systemctl status jenkins
 ls
+git remote add https://github.com/gunjanboswal-blip/key
+it remote add https://github.com/gunjanboswal-blip/key.git
