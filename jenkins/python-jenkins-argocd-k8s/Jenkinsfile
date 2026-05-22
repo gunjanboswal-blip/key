@@ -2,71 +2,36 @@ pipeline {
     agent any
 
     environment {
-        // Defines the image tag using the Jenkins build number (e.g., my-local-app:7)
-        IMAGE_NAME = "jenkin"
+        // Renamed to your naming preference
+        IMAGE_NAME = "gunjan-django-app"
         IMAGE_TAG  = "${BUILD_NUMBER}"
-        
-        // The path to your Python app inside the repository
-        SUB_DIR    = "master/jenkins/python-jenkins-argocd-k8s"
+        // Matches Abhishek's repository folder structure exactly
+        SUB_DIR    = "python-jenkins-argocd-k8s" 
     }
 
     stages {
         stage('Checkout Code') {
             steps {
-                // Safely pulls down your repository code
                 checkout scm
             }
         }
 
-        stage('Build Docker Image') {
-            steps {
-                // dir() switches Jenkins' focus into your subfolder so Docker can find requirements.txt
-                dir("${SUB_DIR}") {
-                    script {
-                        echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
-                        sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                    }
-                }
-            }
-        }
-
-        stage('Test App') {
+        stage('Build Local Docker Image') {
             steps {
                 dir("${SUB_DIR}") {
-                    echo "Running Django tests..."
-                    // Optional: You can run tests inside your freshly built image if needed
-                    // sh "docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} python manage.py test"
+                    // Builds the image locally on your Jenkins server
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                 }
-            }
-        }
-
-        stage('Push to Registry') {
-            steps {
-                echo "Ready for Docker Push. (Uncomment and configure credentials when you have a container registry like DockerHub or ECR)"
-                /*
-                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "docker login -u ${USER} -p ${PASS}"
-                    sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} your-dockerhub-username/${IMAGE_NAME}:${IMAGE_TAG}"
-                    sh "docker push your-dockerhub-username/${IMAGE_NAME}:${IMAGE_TAG}"
-                }
-                */
-            }
-        }
-
-        stage('Update ArgoCD Manifests') {
-            steps {
-                echo "Ready for ArgoCD GitOps step."
-                echo "This stage typically clones your Kubernetes deployment repo, updates the image tag to ${IMAGE_TAG}, and pushes it back so ArgoCD can sync it."
             }
         }
     }
 
     post {
-        success {
-            echo "Pipeline completed successfully! Image ${IMAGE_NAME}:${IMAGE_TAG} is built."
+        success { 
+            echo "Successfully built local image -> ${IMAGE_NAME}:${IMAGE_TAG}" 
         }
-        failure {
-            echo "Pipeline failed. Check the stage logs above for details."
+        failure { 
+            echo "Pipeline failed. Check logs." 
         }
     }
 }
