@@ -67,14 +67,67 @@ CMD ["python", "-m", "http.server", "8000"]
                 }
             }
         }
-    } // <-- The stages block ends cleanly here
+        stage('Checkout K8S Manifest SCM') {
+            steps {
 
-    post { 
-        success { 
-            echo "Successfully built local image -> ${IMAGE_NAME}:${IMAGE_TAG}" 
+                dir('k8s-manifest') {
+
+                    git branch: "master",
+                        credentialsId: "gunjan",
+                        url: "https://github.com/gunjanboswal-blip/key.git}"
+                }
+            }
         }
-        failure { 
-            echo "Pipeline failed. Check logs." 
+
+        stage('Update K8S Manifest & Push') {
+            steps {
+
+                dir('k8s-manifest') {
+
+                    script {
+
+                        withCredentials([
+                            usernamePassword(
+                                credentialsId: "{GIT_CREDS}",
+                                usernameVariable: 'GIT_USERNAME',
+                                passwordVariable: 'GIT_PASSWORD'
+                            )
+                        ]) {
+
+                            sh """
+                                echo "===== BEFORE UPDATE ====="
+                                cat jenkins/python-jenkins-argocd-k8s/deploy.yaml
+
+                                # Replace image tag
+                                sed -i 's|image: .*|image: ${IMAGE_NAME}:${BUILD_NUMBER}|g' jenkins/python-jenkins-argocd-k8s/deploy.yaml
+
+                                echo "===== AFTER UPDATE ====="
+                                cat jenkins/python-jenkins-argocd-k8s/deploy.yaml
+
+                                git config user.email "jenkins@example.com"
+                                git config user.name "Jenkins"
+
+                                git add jenkins/python-jenkins-argocd-k8s/deploy.yaml
+
+                                git diff --cached --quiet || git commit -m "Updated image to build ${BUILD_NUMBER}"
+
+                                git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/gunjanboswal-blip/key.git HEAD:${GIT_BRANCH}
+                            """
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+
+        success {
+            echo "Successfully built local image -> ${IMAGE_NAME}:${IMAGE_TAG}"
+        }
+
+        failure {
+            echo "Pipeline failed. Check logs."
         }
     }
 }
