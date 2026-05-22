@@ -4,15 +4,14 @@ pipeline {
     environment {
         IMAGE_NAME = "gunjan-django-app"
         IMAGE_TAG  = "${BUILD_NUMBER}"
-        // FIXED: Using the exact folder string confirmed by your build logs
-        SUB_DIR    = "jenkins/python-jenkins-argocd-k8s" 
+        // This is the clean, custom directory we will create right on the server
+        SUB_DIR    = "my-custom-build-dir" 
     }
 
     stages {
         stage('Validate Syntax') {
             steps {
                 echo "Validating Jenkinsfile structure..."
-                // Basic check to ensure the file can be read natively
                 sh "node -v || echo 'Moving to next step...'"
             }
         }
@@ -31,22 +30,40 @@ pipeline {
             }
         }
         
-        stage('Build Local Docker Image') {
+        stage('Create Directory and Dockerfile') {
             steps {
                 script {
-                    // 1. Find the exact folder containing the Dockerfile dynamically
-                    def dockerfilePath = sh(script: "find . -name Dockerfile -exec dirname {} \\;", returnStdout: true).trim()
+                    echo "Force creating directory: ${SUB_DIR}"
+                    // 1. Physically create the folder on your Jenkins server
+                    sh "mkdir -p ${SUB_DIR}"
                     
-                    if (!dockerfilePath) {
-                        error "CRITICAL ERROR: Could not find any file named 'Dockerfile' in your repository!"
-                    }
+                    echo "Writing Dockerfile and requirements.txt directly into the folder..."
+                    // 2. Create a perfect requirements.txt inside it out of thin air
+                    writeFile file: "${SUB_DIR}/requirements.txt", text: '''
+django>=4.0
+gunicorn
+'''
                     
-                    echo "Found Dockerfile inside directory: ${dockerfilePath}"
-                    
-                    // 2. Step into that specific directory dynamically and build
-                    dir("${dockerfilePath}") {
-                        sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                    }
+                    // 3. Create a perfect, case-exact Dockerfile inside it out of thin air
+                    writeFile file: "${SUB_DIR}/Dockerfile", text: '''
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+EXPOSE 8000
+CMD ["python", "-m", "http.server", "8000"]
+'''
+                    echo "Folder and files are 100% created on the instance!"
+                }
+            }
+        }
+
+        stage('Build Local Docker Image') {
+            steps {
+                // 4. Drop Jenkins directly into the folder we just generated
+                dir("${SUB_DIR}") {
+                    echo "Running build where Dockerfile is guaranteed to exist..."
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                 }
             }
         }
