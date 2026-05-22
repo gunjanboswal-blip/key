@@ -1,47 +1,72 @@
 pipeline {
-    agent any 
+    agent any
+
     environment {
-        GITHUB_USER  = 'gunjanboswal-blip'
-        REPO_NAME    = 'key'
-        PROJECT_DIR  = 'jenkins/python-jenkins-argocd-k8s'
-        IMAGE_NAME   = 'my-local-app'
-        IMAGE_TAG    = "${BUILD_NUMBER}"
-        CREDS_ID     = 'github-token'
+        // Defines the image tag using the Jenkins build number (e.g., my-local-app:7)
+        IMAGE_NAME = "jenkin"
+        IMAGE_TAG  = "${BUILD_NUMBER}"
+        
+        // The path to your Python app inside the repository
+        SUB_DIR    = "master/jenkins/python-jenkins-argocd-k8s"
     }
+
     stages {
         stage('Checkout Code') {
             steps {
-                git credentialsId: "${CREDS_ID}",
-                    url: "https://github.com/${GITHUB_USER}/${REPO_NAME}.git",
-                    branch: 'master'
+                // Safely pulls down your repository code
+                checkout scm
             }
         }
+
         stage('Build Docker Image') {
             steps {
-                script {
-                    dir("${PROJECT_DIR}") {
+                // dir() switches Jenkins' focus into your subfolder so Docker can find requirements.txt
+                dir("${SUB_DIR}") {
+                    script {
+                        echo "Building Docker image: ${IMAGE_NAME}:${IMAGE_TAG}..."
                         sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
                     }
                 }
             }
         }
-        stage('Update Manifest & Push') {
+
+        stage('Test App') {
             steps {
-                script {
-                    withCredentials([usernamePassword(credentialsId: "${CREDS_ID}", passwordVariable: 'GIT_PASSWORD', usernameVariable: 'GIT_USERNAME')]) {
-                        dir("${PROJECT_DIR}") {
-                            sh "sed -i 's|image: .*|image: ${IMAGE_NAME}:${IMAGE_TAG}|g' deploy/deploy.yaml"
-                        }
-                        sh """
-                        git config user.email "gunjanboswal.devops@example.com"
-                        git config user.name "Gunjan Automation Bot"
-                        git add ${PROJECT_DIR}/deploy/deploy.yaml
-                        git commit -m "chore: auto-update deployment manifest to v${IMAGE_TAG} [skip ci]"
-                        git push https://${GIT_USERNAME}:${GIT_PASSWORD}@github.com/${GITHUB_USER}/${REPO_NAME}.git HEAD:master
-                        """                        
-                    }
+                dir("${SUB_DIR}") {
+                    echo "Running Django tests..."
+                    // Optional: You can run tests inside your freshly built image if needed
+                    // sh "docker run --rm ${IMAGE_NAME}:${IMAGE_TAG} python manage.py test"
                 }
             }
+        }
+
+        stage('Push to Registry') {
+            steps {
+                echo "Ready for Docker Push. (Uncomment and configure credentials when you have a container registry like DockerHub or ECR)"
+                /*
+                withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh "docker login -u ${USER} -p ${PASS}"
+                    sh "docker tag ${IMAGE_NAME}:${IMAGE_TAG} your-dockerhub-username/${IMAGE_NAME}:${IMAGE_TAG}"
+                    sh "docker push your-dockerhub-username/${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+                */
+            }
+        }
+
+        stage('Update ArgoCD Manifests') {
+            steps {
+                echo "Ready for ArgoCD GitOps step."
+                echo "This stage typically clones your Kubernetes deployment repo, updates the image tag to ${IMAGE_TAG}, and pushes it back so ArgoCD can sync it."
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline completed successfully! Image ${IMAGE_NAME}:${IMAGE_TAG} is built."
+        }
+        failure {
+            echo "Pipeline failed. Check the stage logs above for details."
         }
     }
 }
