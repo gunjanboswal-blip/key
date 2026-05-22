@@ -2,11 +2,10 @@ pipeline {
     agent any
 
     environment {
-        // Renamed to your naming preference
         IMAGE_NAME = "gunjan-django-app"
         IMAGE_TAG  = "${BUILD_NUMBER}"
-        // Matches Abhishek's repository folder structure exactly
-        SUB_DIR    = "python-jenkins-argocd-k8s" 
+        // FIXED: Combined your personal folder with the application folder path
+        SUB_DIR    = "jenkins/python-jenkins-argocd-k8s/app" 
     }
 
     stages {
@@ -15,30 +14,30 @@ pipeline {
                 checkout scm
             }
         }
-           stage('Debug Folder Structure') {
-                steps {
-                    echo "=== PRINTING ALL FILES IN YOUR REPOSITORY ==="
-                    // This command lists every single folder and file in your workspace
-                    sh "ls -R"
-                    echo "============================================="
-                }
-            }
-            stage('Build Local Docker Image') {
-                steps {
-                   dir("${SUB_DIR}") {
-                        // Builds the image locally on your Jenkins server
-                        sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
-                    }
-                }
-            }
-            post {
-            success { 
-                echo "Successfully built local image -> ${IMAGE_NAME}:${IMAGE_TAG}" 
-            }
-            failure { 
-                echo "Pipeline failed. Check logs." 
+        
+        stage('Debug Folder Structure') {
+            steps {
+                echo "=== PRINTING ALL FILES IN YOUR REPOSITORY ==="
+                sh "ls -R"
+                echo "============================================="
             }
         }
+        
+        stage('Build Local Docker Image') {
+            steps {
+                dir("${SUB_DIR}") {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                }
+            }
+        }
+    } // <-- The stages block ends completely here
+
+    post { // <-- The post block is now in its proper home outside of stages
+        success { 
+            echo "Successfully built local image -> ${IMAGE_NAME}:${IMAGE_TAG}" 
+        }
+        failure { 
+            echo "Pipeline failed. Check logs." 
+        }
     }
-}    
-    
+}
