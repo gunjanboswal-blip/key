@@ -4,6 +4,8 @@ pipeline {
     environment {
         IMAGE_NAME = "gunjan-django-app"
         IMAGE_TAG  = "${BUILD_NUMBER}"
+        // FIXED: Using the exact folder string confirmed by your build logs
+        SUB_DIR    = "jenkins/python-jenkins-argocd-k8s" 
     }
 
     stages {
